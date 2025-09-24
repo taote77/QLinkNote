@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QLinkNote - 现代化 Markdown 编辑器</title>
+    <meta name="description" content="QLinkNote 是一款现代化的 Markdown 编辑器，灵感来自 Obsidian，支持实时预览、文件管理和主题切换。">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        header {
+            text-align: center;
+            padding: 80px 0 60px;
+            color: white;
+        }
+        
+        .logo {
+            font-size: 3.5rem;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        
+        .tagline {
+            font-size: 1.5rem;
+            opacity: 0.9;
+            margin-bottom: 40px;
+        }
+        
+        .download-section {
+            background: white;
+            margin: 40px 0;
+            padding: 60px 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        
+        .download-title {
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+            color: #2d3748;
+        }
+        
+        .download-buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin: 40px 0;
+            flex-wrap: wrap;
+        }
+        
+        .download-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 15px 30px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 1.1rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        .download-btn:hover {
+            background: #5a67d8;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        }
+        
+        .download-btn.secondary {
+            background: #48bb78;
+            box-shadow: 0 4px 15px rgba(72, 187, 120, 0.3);
+        }
+        
+        .download-btn.secondary:hover {
+            background: #38a169;
+            box-shadow: 0 8px 25px rgba(72, 187, 120, 0.4);
+        }
+        
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin: 60px 0;
+        }
+        
+        .feature {
+            background: rgba(255,255,255,0.1);
+            padding: 30px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+        }
+        
+        .feature-icon {
+            font-size: 2.5rem;
+            margin-bottom: 15px;
+        }
+        
+        .feature h3 {
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+        }
+        
+        .installation {
+            background: #2d3748;
+            color: white;
+            padding: 60px 40px;
+            border-radius: 20px;
+            margin: 40px 0;
+        }
+        
+        .installation h2 {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 40px;
+        }
+        
+        .install-methods {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+        }
+        
+        .install-method {
+            background: #4a5568;
+            padding: 30px;
+            border-radius: 15px;
+        }
+        
+        .install-method h3 {
+            font-size: 1.3rem;
+            margin-bottom: 15px;
+            color: #81e6d9;
+        }
+        
+        .install-code {
+            background: #1a202c;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            color: #68d391;
+            margin: 15px 0;
+            overflow-x: auto;
+        }
+        
+        footer {
+            text-align: center;
+            padding: 40px 0;
+            color: rgba(255,255,255,0.8);
+        }
+        
+        @media (max-width: 768px) {
+            .logo {
+                font-size: 2.5rem;
+            }
+            
+            .download-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .download-btn {
+                width: 280px;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">📝 QLinkNote</div>
+            <div class="tagline">现代化的 Markdown 编辑器</div>
+            <p>灵感来自 Obsidian，专为知识工作者和内容创作者打造</p>
+        </header>
+        
+        <div class="download-section">
+            <h2 class="download-title">🚀 立即下载</h2>
+            <p>完全免费，支持 Windows, macOS, Linux</p>
+            
+            <div class="download-buttons">
+                <a href="https://github.com/yourusername/qlinknote/releases/latest" class="download-btn">
+                    💻 下载 Windows 版
+                </a>
+                <a href="https://github.com/yourusername/qlinknote" class="download-btn secondary">
+                    📖 查看源码
+                </a>
+            </div>
+            
+            <p><small>版本 1.0.0 | 大小: ~75MB | 更新时间: 2024年9月</small></p>
+        </div>
+        
+        <div class="features">
+            <div class="feature">
+                <div class="feature-icon">✨</div>
+                <h3>实时预览</h3>
+                <p>所见即所得的 Markdown 编辑体验，支持分屏模式，编辑和预览同步进行。</p>
+            </div>
+            
+            <div class="feature">
+                <div class="feature-icon">📁</div>
+                <h3>文件管理</h3>
+                <p>完整的文件树导航，支持文件夹创建、重命名、删除等操作，让知识管理更有序。</p>
+            </div>
+            
+            <div class="feature">
+                <div class="feature-icon">🔍</div>
+                <h3>强大搜索</h3>
+                <p>全文搜索功能，快速定位需要的内容，支持文件名和内容搜索。</p>
+            </div>
+            
+            <div class="feature">
+                <div class="feature-icon">🌓</div>
+                <h3>主题切换</h3>
+                <p>深色和浅色主题自由切换，保护眼睛，适应不同使用环境。</p>
+            </div>
+            
+            <div class="feature">
+                <div class="feature-icon">⚡</div>
+                <h3>快捷键</h3>
+                <p>丰富的键盘快捷键支持，提高编辑效率，让专注于内容创作。</p>
+            </div>
+            
+            <div class="feature">
+                <div class="feature-icon">💾</div>
+                <h3>自动保存</h3>
+                <p>实时自动保存，再也不用担心内容丢失，支持本地存储和文件系统。</p>
+            </div>
+        </div>
+        
+        <div class="installation">
+            <h2>📦 多种安装方式</h2>
+            
+            <div class="install-methods">
+                <div class="install-method">
+                    <h3>📥 直接下载</h3>
+                    <p>从 GitHub Releases 下载最新版本</p>
+                    <div class="install-code">
+                        1. 访问 GitHub Releases 页面<br>
+                        2. 下载 QLinkNote-Setup.exe<br>
+                        3. 双击安装即可使用
+                    </div>
+                </div>
+                
+                <div class="install-method">
+                    <h3>🍫 Chocolatey</h3>
+                    <p>Windows 包管理器安装</p>
+                    <div class="install-code">
+                        choco install qlinknote
+                    </div>
+                </div>
+                
+                <div class="install-method">
+                    <h3>📦 WinGet</h3>
+                    <p>微软官方包管理器</p>
+                    <div class="install-code">
+                        winget install qlinknote
+                    </div>
+                </div>
+                
+                <div class="install-method">
+                    <h3>🥄 Scoop</h3>
+                    <p>轻量级包管理器</p>
+                    <div class="install-code">
+                        scoop install qlinknote
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <footer>
+        <div class="container">
+            <p>© 2024 QLinkNote Team | 开源免费 | MIT License</p>
+            <p>
+                <a href="https://github.com/yourusername/qlinknote" style="color: #81e6d9;">GitHub</a> | 
+                <a href="https://github.com/yourusername/qlinknote/issues" style="color: #81e6d9;">反馈问题</a> | 
+                <a href="https://github.com/yourusername/qlinknote/blob/main/README.md" style="color: #81e6d9;">使用文档</a>
+            </p>
+        </div>
+    </footer>
+</body>
+</html>

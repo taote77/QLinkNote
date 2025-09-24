@@ -10,6 +10,7 @@ import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useElectronFileSystem } from './hooks/useElectronFileSystem';
 import { useElectronMenu } from './hooks/useElectronMenu';
 import { useToast } from './hooks/useToast';
+import { useWorkspace } from './hooks/useWorkspace';
 
 const initialFiles: Record<string, FileItem> = {
   'welcome': {
@@ -53,6 +54,14 @@ function App() {
     setCurrentFilePath,
     setCurrentFileName 
   } = useElectronFileSystem();
+  const { 
+    workspace,
+    openWorkspace,
+    closeWorkspace,
+    refreshWorkspace,
+    createFileInWorkspace,
+    createFolderInWorkspace
+  } = useWorkspace();
   const { toasts, removeToast, showSuccess, showError } = useToast();
   
   const [state, setState] = useState<EditorState>(() => {
@@ -73,7 +82,8 @@ function App() {
       searchQuery: '',
       isDarkMode,
       isPreviewMode: false,
-      isSplitView: true
+      isSplitView: true,
+      workspace: null
     };
   });
 
@@ -90,47 +100,190 @@ function App() {
     }
   }, [storedFiles, saveFiles, isElectron]);
 
-  // 创建新文件
-  const createFile = useCallback((name: string, parentId?: string) => {
-    const id = generateId();
-    const newFile: FileItem = {
-      id,
-      name,
-      type: 'file',
-      content: '',
-      parentId
-    };
-
-    const updatedFiles = {
-      ...state.files,
-      [id]: newFile
-    };
-
+  // 同步工作空间状态
+  useEffect(() => {
     setState(prev => ({
       ...prev,
-      files: updatedFiles,
-      activeFileId: id,
-      openFiles: [...prev.openFiles, id]
+      workspace
     }));
+  }, [workspace]);
 
-    // 保存到本地存储
-    saveFiles(updatedFiles);
-  }, [state.files, saveFiles]);
+  // 创建新文件
+  const createFile = useCallback(async (name: string, parentId?: string) => {
+    // 检查是否是在工作空间文件夹中创建
+    const parentItem = parentId ? state.files[parentId] : null;
+    const isInWorkspace = parentItem?.isWorkspaceFile || (state.workspace && !parentId);
+    
+    if (isInWorkspace && state.workspace) {
+      // 在工作空间中创建文件
+      const parentPath = parentItem?.filePath;
+      const result = await createFileInWorkspace(name, parentPath);
+      if (result.success) {
+        // 刷新工作空间
+        const refreshResult = await refreshWorkspace();
+        if (refreshResult.success && refreshResult.files) {
+          setState(prev => {
+            const newFiles = { ...prev.files };
+            // 移除旧的工作空间文件
+            Object.keys(newFiles).forEach(id => {
+              if (newFiles[id].isWorkspaceFile) {
+                delete newFiles[id];
+              }
+            });
+            // 添加新的工作空间文件
+            return {
+              ...prev,
+              files: { ...newFiles, ...refreshResult.files }
+            };
+          });
+        }
+        showSuccess(`文件已创建: ${name}`);
+      } else {
+        showError(result.error || '创建文件失败');
+      }
+    } else {
+      // 在应用内创建文件
+      const id = generateId();
+      const newFile: FileItem = {
+        id,
+        name,
+        type: 'file',
+        content: '',
+        parentId
+      };
+
+      const updatedFiles = {
+        ...state.files,
+        [id]: newFile
+      };
+
+      setState(prev => ({
+        ...prev,
+        files: updatedFiles,
+        activeFileId: id,
+        openFiles: [...prev.openFiles, id]
+      }));
+
+      // 保存到本地存储
+      saveFiles(updatedFiles);
+    }
+  }, [state.files, state.workspace, createFileInWorkspace, refreshWorkspace, saveFiles, showSuccess, showError]);
 
   // 创建新文件夹
-  const createFolder = useCallback((name: string, parentId?: string) => {
-    const id = generateId();
-    const newFolder: FileItem = {
-      id,
-      name,
-      type: 'folder',
-      children: [],
-      parentId
+  const createFolder = useCallback(async (name: string, parentId?: string) => {
+    // 检查是否是在工作空间文件夹中创建
+    const parentItem = parentId ? state.files[parentId] : null;
+    const isInWorkspace = parentItem?.isWorkspaceFile || (state.workspace && !parentId);
+    
+    if (isInWorkspace && state.workspace) {
+      // 在工作空间中创建文件夹
+      const parentPath = parentItem?.filePath;
+      const result = await createFolderInWorkspace(name, parentPath);
+      if (result.success) {
+        // 刷新工作空间
+        const refreshResult = await refreshWorkspace();
+        if (refreshResult.success && refreshResult.files) {
+          setState(prev => {
+            const newFiles = { ...prev.files };
+            // 移除旧的工作空间文件
+            Object.keys(newFiles).forEach(id => {
+              if (newFiles[id].isWorkspaceFile) {
+                delete newFiles[id];
+              }
+            });
+            // 添加新的工作空间文件
+            return {
+              ...prev,
+              files: { ...newFiles, ...refreshResult.files }
+            };
+          });
+        }
+        showSuccess(`文件夹已创建: ${name}`);
+      } else {
+        showError(result.error || '创建文件夹失败');
+      }
+    } else {
+      // 在应用内创建文件夹
+      const id = generateId();
+      const newFolder: FileItem = {
+        id,
+        name,
+        type: 'folder',
+        children: [],
+        parentId
+      };
+
+      const updatedFiles = {
+        ...state.files,
+        [id]: newFolder
+      };
+
+      setState(prev => ({
+        ...prev,
+        files: updatedFiles
+      }));
+
+      // 保存到本地存储
+      saveFiles(updatedFiles);
+    }
+  }, [state.files, state.workspace, createFolderInWorkspace, refreshWorkspace, saveFiles, showSuccess, showError]);
+
+  // 打开工作空间
+  const handleOpenWorkspace = useCallback(async () => {
+    const result = await openWorkspace();
+    if (result.success && result.files && result.workspace) {
+      setState(prev => ({
+        ...prev,
+        files: { ...prev.files, ...result.files },
+        workspace: result.workspace || null
+      }));
+      showSuccess(`工作空间已打开: ${result.workspace.name}`);
+    } else {
+      showError(result.error || '打开工作空间失败');
+    }
+  }, [openWorkspace, showSuccess, showError]);
+
+  // 关闭工作空间
+  const handleCloseWorkspace = useCallback(() => {
+    // 移除工作空间文件
+    setState(prev => {
+      const newFiles = { ...prev.files };
+      Object.keys(newFiles).forEach(id => {
+        if (newFiles[id].isWorkspaceFile) {
+          delete newFiles[id];
+        }
+      });
+      
+      return {
+        ...prev,
+        files: newFiles,
+        workspace: null,
+        openFiles: prev.openFiles.filter(id => newFiles[id]),
+        activeFileId: prev.activeFileId && newFiles[prev.activeFileId] ? prev.activeFileId : 
+          (Object.keys(newFiles).find(id => prev.openFiles.includes(id)) || null)
+      };
+    });
+    
+    closeWorkspace();
+    showSuccess('工作空间已关闭');
+  }, [closeWorkspace, showSuccess]);
+
+  // 重命名文件/文件夹
+  const renameItem = useCallback((id: string, newName: string) => {
+    const item = state.files[id];
+    if (!item || !newName.trim()) return;
+
+    // 如果是文件，确保有 .md 后缀
+    const finalName = item.type === 'file' && !newName.endsWith('.md') ? `${newName}.md` : newName;
+    
+    const updatedItem = {
+      ...item,
+      name: finalName
     };
 
     const updatedFiles = {
       ...state.files,
-      [id]: newFolder
+      [id]: updatedItem
     };
 
     setState(prev => ({
@@ -139,27 +292,54 @@ function App() {
     }));
 
     // 保存到本地存储
+    saveFile(updatedItem);
     saveFiles(updatedFiles);
-  }, [state.files, saveFiles]);
+    
+    showSuccess(`${item.type === 'folder' ? '文件夹' : '文件'}已重命名为: ${finalName}`);
+  }, [state.files, saveFile, saveFiles, showSuccess]);
 
   // 删除文件/文件夹
   const deleteItem = useCallback((id: string) => {
-    const updatedFiles = { ...state.files };
-    delete updatedFiles[id];
+    const item = state.files[id];
+    if (!item) return;
+    
+    // 递归删除文件夹及其子项
+    const deleteRecursive = (itemId: string, files: Record<string, FileItem>) => {
+      const itemToDelete = files[itemId];
+      if (!itemToDelete) return files;
+      
+      let updatedFiles = { ...files };
+      
+      // 如果是文件夹，先删除所有子项
+      if (itemToDelete.type === 'folder') {
+        const children = Object.values(files).filter(f => f.parentId === itemId);
+        children.forEach(child => {
+          updatedFiles = deleteRecursive(child.id, updatedFiles);
+        });
+      }
+      
+      // 删除项目本身
+      delete updatedFiles[itemId];
+      return updatedFiles;
+    };
+    
+    const updatedFiles = deleteRecursive(id, state.files);
     
     setState(prev => ({
       ...prev,
       files: updatedFiles,
-      openFiles: prev.openFiles.filter(fileId => fileId !== id),
-      activeFileId: prev.activeFileId === id ? 
-        (prev.openFiles.find(fileId => fileId !== id) || null) : 
+      openFiles: prev.openFiles.filter(fileId => updatedFiles[fileId]),
+      activeFileId: !updatedFiles[prev.activeFileId!] ? 
+        (prev.openFiles.find(fId => updatedFiles[fId]) || null) : 
         prev.activeFileId
     }));
 
     // 从本地存储删除
     deleteFile(id);
     saveFiles(updatedFiles);
-  }, [state.files, deleteFile, saveFiles]);
+    
+    showSuccess(`${item.type === 'folder' ? '文件夹' : '文件'}已删除`);
+  }, [state.files, deleteFile, saveFiles, showSuccess]);
 
   // 保存当前文件
   const saveCurrentFile = useCallback(async () => {
@@ -339,6 +519,8 @@ function App() {
     onOpenFile: openFile,
     onSaveFile: saveCurrentFile,
     onSaveAs: saveAsFile,
+    onOpenWorkspace: handleOpenWorkspace,
+    onCloseWorkspace: handleCloseWorkspace,
     onFind: () => {
       const searchInput = document.querySelector('.search-input') as HTMLInputElement;
       searchInput?.focus();
@@ -369,12 +551,16 @@ function App() {
           files={state.files}
           activeFileId={state.activeFileId}
           searchQuery={state.searchQuery}
+          workspace={state.workspace}
           onFileSelect={setActiveFile}
           onCreateFile={createFile}
           onCreateFolder={createFolder}
           onDeleteItem={deleteItem}
+          onRenameItem={renameItem}
           onSearchChange={setSearchQuery}
           onToggleTheme={toggleTheme}
+          onOpenWorkspace={handleOpenWorkspace}
+          onCloseWorkspace={handleCloseWorkspace}
           isDarkMode={state.isDarkMode}
         />
         <Editor

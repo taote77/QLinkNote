@@ -5,6 +5,8 @@ interface MenuCallbacks {
   onOpenFile?: (fileName: string, content: string, filePath: string) => void;
   onSaveFile?: () => void;
   onSaveAs?: () => void;
+  onOpenWorkspace?: () => void;
+  onCloseWorkspace?: () => void;
   onFind?: () => void;
   onTogglePreview?: () => void;
   onToggleSplit?: () => void;
@@ -41,6 +43,16 @@ export const useElectronMenu = (callbacks: MenuCallbacks) => {
       electronAPI.onMenuSaveAs(callbacks.onSaveAs);
     }
 
+    // 打开工作空间
+    if (callbacks.onOpenWorkspace) {
+      electronAPI.onMenuOpenWorkspace(callbacks.onOpenWorkspace);
+    }
+
+    // 关闭工作空间
+    if (callbacks.onCloseWorkspace) {
+      electronAPI.onMenuCloseWorkspace(callbacks.onCloseWorkspace);
+    }
+
     // 查找
     if (callbacks.onFind) {
       electronAPI.onMenuFind(callbacks.onFind);
@@ -72,6 +84,8 @@ export const useElectronMenu = (callbacks: MenuCallbacks) => {
     electronAPI.removeAllListeners('menu-open-file');
     electronAPI.removeAllListeners('menu-save-file');
     electronAPI.removeAllListeners('menu-save-as');
+    electronAPI.removeAllListeners('menu-open-workspace');
+    electronAPI.removeAllListeners('menu-close-workspace');
     electronAPI.removeAllListeners('menu-find');
     electronAPI.removeAllListeners('menu-toggle-preview');
     electronAPI.removeAllListeners('menu-toggle-split');

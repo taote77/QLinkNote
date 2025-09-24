@@ -135,6 +135,21 @@ function createMenu() {
         },
         { type: 'separator' },
         {
+          label: '打开工作空间',
+          accelerator: 'CmdOrCtrl+Shift+O',
+          click: () => {
+            mainWindow.webContents.send('menu-open-workspace');
+          }
+        },
+        {
+          label: '关闭工作空间',
+          accelerator: 'CmdOrCtrl+Shift+W',
+          click: () => {
+            mainWindow.webContents.send('menu-close-workspace');
+          }
+        },
+        { type: 'separator' },
+        {
           label: '退出',
           accelerator: process.platform === 'darwin' ? 'Cmd+Q' : 'Ctrl+Q',
           click: () => {
@@ -247,7 +262,7 @@ function createMenu() {
 }
 
 // IPC 处理程序
-ipcMain.handle('save-file', async (event, { content, filePath }) => {
+ipcMain.handle('save-file', async (event, { content, filePath, suggestedName }) => {
   try {
     if (filePath) {
       await fs.writeFile(filePath, content, 'utf-8');
@@ -260,7 +275,7 @@ ipcMain.handle('save-file', async (event, { content, filePath }) => {
           { name: 'Text Files', extensions: ['txt'] },
           { name: 'All Files', extensions: ['*'] }
         ],
-        defaultPath: 'untitled.md'
+        defaultPath: suggestedName || 'untitled.md'
       });
 
       if (!result.canceled && result.filePath) {
@@ -284,6 +299,104 @@ ipcMain.handle('read-file', async (event, filePath) => {
     return { success: false, error: error.message };
   }
 });
+
+// 工作空间相关IPC处理程序
+ipcMain.handle('open-workspace', async () => {
+  try {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openDirectory'],
+      title: '选择工作空间文件夹'
+    });
+
+    if (!result.canceled && result.filePaths.length > 0) {
+      const workspacePath = result.filePaths[0];
+      const files = await readDirectoryRecursive(workspacePath);
+      return { success: true, path: workspacePath, files };
+    }
+    
+    return { success: false };
+  } catch (error) {
+    console.error('Error opening workspace:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('read-workspace-files', async (event, workspacePath) => {
+  try {
+    const files = await readDirectoryRecursive(workspacePath);
+    return { success: true, files };
+  } catch (error) {
+    console.error('Error reading workspace files:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('create-file-in-workspace', async (event, { workspacePath, fileName, parentPath }) => {
+  try {
+    const fullPath = parentPath ? path.join(parentPath, fileName) : path.join(workspacePath, fileName);
+    await fs.writeFile(fullPath, '', 'utf-8');
+    return { success: true, filePath: fullPath };
+  } catch (error) {
+    console.error('Error creating file in workspace:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('create-folder-in-workspace', async (event, { workspacePath, folderName, parentPath }) => {
+  try {
+    const fullPath = parentPath ? path.join(parentPath, folderName) : path.join(workspacePath, folderName);
+    await fs.mkdir(fullPath, { recursive: true });
+    return { success: true, folderPath: fullPath };
+  } catch (error) {
+    console.error('Error creating folder in workspace:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// 递归读取目录的助手函数
+async function readDirectoryRecursive(dirPath) {
+  const files = [];
+  
+  try {
+    const entries = await fs.readdir(dirPath, { withFileTypes: true });
+    
+    for (const entry of entries) {
+      // 跳过隐藏文件和系统文件
+      if (entry.name.startsWith('.') || entry.name === 'node_modules') {
+        continue;
+      }
+      
+      const fullPath = path.join(dirPath, entry.name);
+      const fileInfo = {
+        name: entry.name,
+        path: fullPath,
+        type: entry.isDirectory() ? 'folder' : 'file'
+      };
+      
+      if (entry.isDirectory()) {
+        // 递归读取子目录
+        fileInfo.children = await readDirectoryRecursive(fullPath);
+      } else if (entry.isFile()) {
+        // 只读取文本文件的内容
+        const ext = path.extname(entry.name).toLowerCase();
+        if (['.md', '.txt', '.json', '.js', '.ts', '.html', '.css', '.yml', '.yaml'].includes(ext)) {
+          try {
+            fileInfo.content = await fs.readFile(fullPath, 'utf-8');
+          } catch (error) {
+            // 如果读取失败，不设置内容
+            console.warn(`Failed to read file ${fullPath}:`, error.message);
+          }
+        }
+      }
+      
+      files.push(fileInfo);
+    }
+  } catch (error) {
+    console.error(`Error reading directory ${dirPath}:`, error);
+  }
+  
+  return files;
+}
 
 // 防止多个实例
 const gotTheLock = app.requestSingleInstanceLock();

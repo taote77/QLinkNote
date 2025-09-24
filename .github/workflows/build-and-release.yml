@@ -1,0 +1,97 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # 当推送标签时触发，如 v1.0.0
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Build application
+      run: npm run build
+      
+    - name: Build Electron app
+      run: npm run electron:pack
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: List release files
+      run: dir release\
+      
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: QLinkNote ${{ github.ref }}
+        body: |
+          🎉 QLinkNote 新版本发布！
+          
+          ## 📦 下载地址
+          
+          ### Windows 用户
+          - **便携版**: 下载 `QLinkNote-Setup-*.exe`
+          - **免安装版**: 下载并解压 `QLinkNote-win-x64.zip`
+          
+          ## 🚀 主要特性
+          - 📝 实时 Markdown 编辑和预览
+          - 📁 完整的文件管理系统
+          - 🔍 强大的全文搜索功能
+          - 🌓 深色/浅色主题切换
+          - ⚡ 丰富的键盘快捷键
+          - 💾 自动保存功能
+          
+          ## 📋 安装说明
+          1. 下载对应版本的安装包
+          2. 双击运行安装程序
+          3. 按照向导完成安装
+          4. 开始享受 Markdown 编辑体验！
+          
+          ## 🐛 问题反馈
+          如果遇到问题，请在 [Issues](https://github.com/yourusername/qlinknote/issues) 中反馈。
+          
+        draft: false
+        prerelease: false
+        
+    - name: Upload Windows Setup
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: release/QLinkNote Setup 1.0.0.exe
+        asset_name: QLinkNote-Setup-${{ github.ref_name }}.exe
+        asset_content_type: application/octet-stream
+        
+    - name: Zip Windows portable
+      run: |
+        cd release/win-unpacked
+        7z a ../QLinkNote-win-x64-${{ github.ref_name }}.zip *
+        
+    - name: Upload Windows Portable
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: release/QLinkNote-win-x64-${{ github.ref_name }}.zip
+        asset_name: QLinkNote-win-x64-${{ github.ref_name }}.zip
+        asset_content_type: application/zip

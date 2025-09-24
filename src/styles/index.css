@@ -159,6 +159,41 @@ body {
   opacity: 0.8;
 }
 
+/* 文件夹展开/折叠箭头样式 */
+.file-item .folder-arrow {
+  transition: transform 0.2s ease;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.file-item .folder-arrow:hover {
+  background-color: var(--hover-color);
+}
+
+/* 文件夹子项的缩进效果 */
+.file-tree .file-item[style*="padding-left"] {
+  position: relative;
+}
+
+/* 文件夹类型样式 */
+.file-item.folder {
+  font-weight: 500;
+}
+
+.file-item.folder .icon {
+  opacity: 1;
+  color: var(--text-accent);
+}
+
+/* 活跃状态下的文件夹图标 */
+.file-item.active.folder .icon {
+  color: white;
+}
+
 .button {
   background: none;
   border: 1px solid var(--border-color);
@@ -168,10 +203,13 @@ body {
   cursor: pointer;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   font-size: 13px;
   transition: all 0.15s ease;
   white-space: nowrap;
+  min-width: 32px;
+  height: 32px;
 }
 
 .button:hover {
@@ -188,6 +226,44 @@ body {
 .button.primary:hover {
   opacity: 0.9;
   background-color: var(--text-accent);
+}
+
+/* 暗色模式下的按钮样式优化 */
+[data-theme="dark"] .button {
+  border-color: var(--border-color);
+  color: var(--text-primary);
+  background-color: transparent;
+}
+
+[data-theme="dark"] .button:hover {
+  background-color: var(--hover-color);
+  border-color: var(--text-accent);
+  color: var(--text-accent);
+}
+
+/* 侧边栏标题在暗色模式下的样式 */
+[data-theme="dark"] .sidebar-header h2 {
+  color: var(--text-primary);
+}
+
+/* 文件夹图标在暗色模式下的颜色优化 */
+[data-theme="dark"] .file-item.folder .icon {
+  color: var(--text-accent);
+}
+
+[data-theme="dark"] .file-item.active.folder .icon {
+  color: white;
+}
+
+/* 暗色模式下的上下文菜单样式 */
+[data-theme="dark"] .context-menu {
+  background: var(--bg-secondary);
+  border-color: var(--border-color);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="dark"] .context-menu > div:hover {
+  background-color: var(--hover-color) !important;
 }
 
 .search-input {
