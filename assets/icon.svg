@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <!-- 背景 -->
+  <rect width="256" height="256" rx="32" fill="#1e1e1e"/>
+  
+  <!-- 主要图标 - 文档形状 -->
+  <rect x="64" y="48" width="128" height="160" rx="8" fill="#2d2d30" stroke="#4fc3f7" stroke-width="2"/>
+  
+  <!-- 文档内容线条 -->
+  <line x1="80" y1="80" x2="176" y2="80" stroke="#cccccc" stroke-width="2"/>
+  <line x1="80" y1="100" x2="160" y2="100" stroke="#cccccc" stroke-width="2"/>
+  <line x1="80" y1="120" x2="176" y2="120" stroke="#cccccc" stroke-width="2"/>
+  <line x1="80" y1="140" x2="144" y2="140" stroke="#cccccc" stroke-width="2"/>
+  
+  <!-- Markdown 标记 -->
+  <text x="80" y="175" font-family="monospace" font-size="14" fill="#4fc3f7"># Markdown</text>
+  
+  <!-- 链接图标 -->
+  <circle cx="200" cy="60" r="20" fill="#4fc3f7"/>
+  <path d="M190 60 L210 60 M195 55 L205 65 M205 55 L195 65" stroke="white" stroke-width="2" fill="none"/>
+</svg>
