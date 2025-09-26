@@ -4,6 +4,17 @@ import { generateId } from '../utils/helpers';
 
 const isElectron = typeof window !== 'undefined' && window.electronAPI;
 
+interface WorkspaceMetadata {
+  name: string;
+  createdAt: string;
+  lastOpened: string;
+  version: string;
+  settings?: {
+    theme?: string;
+    layout?: any;
+  };
+}
+
 export const useWorkspace = () => {
   const [workspace, setWorkspace] = useState<WorkspaceInfo | null>(null);
 
@@ -16,16 +27,21 @@ export const useWorkspace = () => {
     try {
       const result = await window.electronAPI!.openWorkspace();
       if (result.success && result.path && result.files) {
+        // 初始化或读取工作空间元数据
+        const metadata = await initializeWorkspaceMetadata(result.path);
+        
         const workspaceInfo: WorkspaceInfo = {
           path: result.path,
-          name: result.path.split(/[\\/]/).pop() || '工作空间',
-          isOpen: true
+          name: metadata?.name || result.path.split(/[\\/]/).pop() || '工作空间',
+          isOpen: true,
+          metadata: metadata || undefined
         };
         
         setWorkspace(workspaceInfo);
         
-        // 将文件系统文件转换为FileItem格式
-        const convertedFiles = convertFSFilesToFileItems(result.files);
+        // 将文件系统文件转换为FileItem格式（排除.linknote文件夹）
+        const filteredFiles = result.files.filter((file: any) => file.name !== '.linknote');
+        const convertedFiles = convertFSFilesToFileItems(filteredFiles);
         
         return { 
           success: true, 
@@ -92,13 +108,46 @@ export const useWorkspace = () => {
     }
   }, [workspace]);
 
+  // 初始化工作空间元数据
+  const initializeWorkspaceMetadata = async (workspacePath: string): Promise<WorkspaceMetadata | null> => {
+    if (!isElectron) return null;
+    
+    try {
+      const result = await window.electronAPI!.initializeWorkspaceMetadata(workspacePath);
+      return result.success ? result.metadata : null;
+    } catch (error) {
+      console.error('Failed to initialize workspace metadata:', error);
+      return null;
+    }
+  };
+
+  // 更新工作空间元数据
+  const updateWorkspaceMetadata = useCallback(async (metadata: Partial<WorkspaceMetadata>): Promise<boolean> => {
+    if (!workspace || !isElectron) return false;
+    
+    try {
+      const result = await window.electronAPI!.updateWorkspaceMetadata(workspace.path, metadata);
+      if (result.success) {
+        setWorkspace(prev => prev ? {
+          ...prev,
+          metadata: { ...prev.metadata, ...metadata } as WorkspaceMetadata
+        } : null);
+      }
+      return result.success;
+    } catch (error) {
+      console.error('Failed to update workspace metadata:', error);
+      return false;
+    }
+  }, [workspace]);
+
   return {
     workspace,
     openWorkspace,
     closeWorkspace,
     refreshWorkspace,
     createFileInWorkspace,
-    createFolderInWorkspace
+    createFolderInWorkspace,
+    updateWorkspaceMetadata
   };
 };
 
@@ -116,7 +165,8 @@ function convertFSFilesToFileItems(fsFiles: any[]): Record<string, FileItem> {
       type: fsFile.type,
       filePath: fsFile.path,
       isWorkspaceFile: true,
-      parentId
+      parentId,
+      isExpanded: fsFile.type === 'folder' ? false : undefined
     };
 
     if (fsFile.type === 'file' && fsFile.content !== undefined) {
@@ -125,19 +175,27 @@ function convertFSFilesToFileItems(fsFiles: any[]): Record<string, FileItem> {
 
     files[id] = fileItem;
 
-    // 处理子文件和文件夹
+    // 处理子文件和文件夹（过滤掉隐藏文件）
     if (fsFile.children && fsFile.children.length > 0) {
-      fileItem.children = [];
-      fsFile.children.forEach((child: any) => {
-        const childItem = processFile(child, id);
-        fileItem.children!.push(childItem);
-      });
+      const filteredChildren = fsFile.children.filter((child: any) => 
+        !child.name.startsWith('.') && child.name !== 'node_modules'
+      );
+      
+      if (filteredChildren.length > 0) {
+        fileItem.children = [];
+        filteredChildren.forEach((child: any) => {
+          const childItem = processFile(child, id);
+          fileItem.children!.push(childItem);
+        });
+      }
     }
 
     return fileItem;
   }
 
-  fsFiles.forEach(fsFile => {
+  // 只处理非隐藏文件和文件夹
+  fsFiles.filter(fsFile => !fsFile.name.startsWith('.') && fsFile.name !== 'node_modules')
+         .forEach(fsFile => {
     processFile(fsFile);
   });
 

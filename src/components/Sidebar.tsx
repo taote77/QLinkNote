@@ -1,5 +1,9 @@
 import React, { useState, useRef } from 'react';
-import { FileItem, WorkspaceInfo } from '../types';
+import { FileItem, WorkspaceInfo, NoteLink } from '../types';
+import { ActivityBarItem } from './ActivityBar';
+// import GraphView from './GraphView'; // 暂时未使用
+import SearchPanel from './SearchPanel';
+import SettingsPanel from './SettingsPanel';
 import InputDialog from './InputDialog';
 import { 
   Search, 
@@ -13,8 +17,7 @@ import {
   Trash2,
   ChevronRight,
   ChevronDown,
-  FolderPlus,
-  X
+  FolderPlus
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -22,6 +25,8 @@ interface SidebarProps {
   activeFileId: string | null;
   searchQuery: string;
   workspace: WorkspaceInfo | null;
+  noteLinks?: Record<string, NoteLink>;
+  activeActivityItem: ActivityBarItem;
   onFileSelect: (id: string) => void;
   onCreateFile: (name: string, parentId?: string) => void;
   onCreateFolder: (name: string, parentId?: string) => void;
@@ -39,6 +44,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   activeFileId,
   searchQuery,
   workspace,
+  // noteLinks, // 暂时未使用
+  activeActivityItem,
   onFileSelect,
   onCreateFile,
   onCreateFolder,
@@ -165,37 +172,40 @@ const Sidebar: React.FC<SidebarProps> = ({
     }
   }, [contextMenu]);
 
-  // 获取文件夹的子项
+  // 获取文件夹的子项（优化排序）
   const getChildItems = (parentId: string): FileItem[] => {
     return Object.values(files)
       .filter(item => item.parentId === parentId)
       .sort((a, b) => {
-        // 文件夹排在前面，然后按名称排序
+        // 文件夹排在前面
         if (a.type !== b.type) {
           return a.type === 'folder' ? -1 : 1;
         }
-        return a.name.localeCompare(b.name);
+        // 然后按名称排序（不区分大小写）
+        return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
       });
   };
 
-  // 获取根级文件和文件夹
+  // 获取根级文件和文件夹（优化排序）
   const rootItems = Object.values(files)
     .filter(item => !item.parentId)
     .sort((a, b) => {
-      // 文件夹排在前面，然后按名称排序
+      // 文件夹排在前面
       if (a.type !== b.type) {
         return a.type === 'folder' ? -1 : 1;
       }
-      return a.name.localeCompare(b.name);
+      // 然后按名称排序（不区分大小写）
+      return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
     });
 
-  // 递归搜索函数
+  // 递归搜索函数（改进搜索算法）
   const searchInItems = (items: FileItem[], query: string): FileItem[] => {
     const result: FileItem[] = [];
+    const lowerQuery = query.toLowerCase();
     
     for (const item of items) {
-      const matchesName = item.name.toLowerCase().includes(query.toLowerCase());
-      const matchesContent = item.content && item.content.toLowerCase().includes(query.toLowerCase());
+      const matchesName = item.name.toLowerCase().includes(lowerQuery);
+      const matchesContent = item.content && item.content.toLowerCase().includes(lowerQuery);
       
       if (matchesName || matchesContent) {
         result.push(item);
@@ -217,47 +227,57 @@ const Sidebar: React.FC<SidebarProps> = ({
     ? searchInItems(rootItems, searchQuery)
     : rootItems;
 
-  const renderFileItem = (item: FileItem, depth: number = 0) => {
+  const renderFileItem = (item: FileItem, depth: number = 0, isSearchMode: boolean = false) => {
     const isActive = item.id === activeFileId;
     const isEditing = editingId === item.id;
-    const isExpanded = expandedFolders.has(item.id);
+    const isExpanded = expandedFolders.has(item.id) || (isSearchMode && item.type === 'folder');
     const hasChildren = item.type === 'folder' && getChildItems(item.id).length > 0;
     
+    // 在搜索模式下自动展开匹配的文件夹
+    const shouldShowChildren = isExpanded || (isSearchMode && hasChildren);
+    
+    const handleItemClick = () => {
+      if (item.type === 'file' && !isEditing) {
+        onFileSelect(item.id);
+      } else if (item.type === 'folder' && !isSearchMode) {
+        toggleFolder(item.id);
+      }
+    };
+    
+    const handleArrowClick = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      toggleFolder(item.id);
+    };
+    
     return (
-      <div key={item.id}>
+      <div key={item.id} className="file-tree-item">
         <div
-          className={`file-item ${isActive ? 'active' : ''}`}
-          onClick={() => {
-            if (item.type === 'file' && !isEditing) {
-              onFileSelect(item.id);
-            } else if (item.type === 'folder') {
-              toggleFolder(item.id);
-            }
-          }}
+          className={`file-item ${isActive ? 'active' : ''} ${item.type === 'folder' ? 'folder' : ''}`}
+          onClick={handleItemClick}
           onContextMenu={(e) => handleRightClick(e, item.id)}
           style={{ 
             position: 'relative',
             paddingLeft: `${depth * 20 + 12}px`,
             display: 'flex',
             alignItems: 'center',
-            gap: '6px'
+            gap: '6px',
+            minHeight: '32px'
           }}
         >
           {/* 展开/折叠箭头 */}
           {item.type === 'folder' && (
             <div
+              className="folder-arrow"
               style={{
                 width: '16px',
                 height: '16px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                opacity: hasChildren ? 1 : 0.3
               }}
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleFolder(item.id);
-              }}
+              onClick={handleArrowClick}
             >
               {hasChildren ? (
                 isExpanded ? (
@@ -269,6 +289,11 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <div style={{ width: '12px', height: '12px' }} />
               )}
             </div>
+          )}
+          
+          {/* 非文件夹的缩进占位符 */}
+          {item.type === 'file' && (
+            <div style={{ width: '16px', height: '16px' }} />
           )}
           
           {/* 文件/文件夹图标 */}
@@ -285,7 +310,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
           
           {/* 名称或编辑输入框 */}
-          <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="file-name" style={{ flex: 1, minWidth: 0 }}>
             {isEditing ? (
               <input
                 type="text"
@@ -294,133 +319,216 @@ const Sidebar: React.FC<SidebarProps> = ({
                 onBlur={() => handleRenameSubmit(item.id)}
                 onKeyDown={(e) => handleKeyDown(e, item.id)}
                 autoFocus
+                className="file-name-input"
                 style={{
+                  width: '100%',
                   background: 'transparent',
                   border: '1px solid var(--text-accent)',
                   color: 'var(--text-primary)',
                   padding: '2px 4px',
                   borderRadius: '2px',
-                  fontSize: '14px',
-                  width: '100%'
+                  fontSize: '14px'
                 }}
               />
             ) : (
-              <span style={{ 
+              <span className="file-name-text" style={{ 
                 overflow: 'hidden', 
                 textOverflow: 'ellipsis', 
-                whiteSpace: 'nowrap' 
+                whiteSpace: 'nowrap',
+                fontSize: '14px'
               }}>
                 {item.name}
               </span>
             )}
           </div>
+          
+          {/* 工作空间文件标识 */}
+          {item.isWorkspaceFile && (
+            <div 
+              className="workspace-indicator"
+              style={{
+                width: '4px',
+                height: '4px',
+                borderRadius: '50%',
+                backgroundColor: 'var(--text-accent)',
+                opacity: 0.6
+              }}
+              title="工作空间文件"
+            />
+          )}
         </div>
         
         {/* 渲染子项 */}
-        {item.type === 'folder' && isExpanded && (
-          <div>
-            {getChildItems(item.id).map(child => renderFileItem(child, depth + 1))}
+        {item.type === 'folder' && shouldShowChildren && (
+          <div className="file-tree-children">
+            {getChildItems(item.id).map(child => 
+              renderFileItem(child, depth + 1, isSearchMode)
+            )}
           </div>
         )}
       </div>
     );
   };
 
-  return (
-    <div className="sidebar">
-      <div className="sidebar-header">
-        <h2 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)' }}>QLinkNote</h2>
-        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-          <button className="button" onClick={onToggleTheme} title="切换主题" style={{ padding: '6px' }}>
-            {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
-          </button>
-          <button className="button" onClick={() => handleCreateFile()} title="新建文件" style={{ padding: '6px 8px' }}>
-            <FileText size={16} />
-          </button>
-          <button className="button" onClick={() => handleCreateFolder()} title="新建文件夹" style={{ padding: '6px 8px' }}>
-            <Folder size={16} />
-          </button>
-          {onOpenWorkspace && !workspace && (
-            <button className="button" onClick={onOpenWorkspace} title="打开工作空间" style={{ padding: '6px 8px' }}>
-              <FolderPlus size={16} />
-            </button>
-          )}
-        </div>
-      </div>
-      
-      {/* 工作空间信息 */}
-      {workspace && (
-        <div style={{ 
-          padding: '8px 16px',
-          backgroundColor: 'var(--bg-tertiary)',
-          borderBottom: '1px solid var(--border-color)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          fontSize: '13px',
-          color: 'var(--text-secondary)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <FolderOpen size={14} />
-            <span>工作空间: {workspace.name}</span>
-          </div>
-          {onCloseWorkspace && (
-            <button 
-              className="button" 
-              onClick={onCloseWorkspace} 
-              title="关闭工作空间"
-              style={{ padding: '4px', minWidth: 'auto', height: 'auto' }}
-            >
-              <X size={12} />
-            </button>
-          )}
-        </div>
-      )}
-      
-      <div style={{ padding: '12px 16px' }}>
-        <div style={{ position: 'relative' }}>
-          <Search 
-            size={16} 
-            style={{ 
-              position: 'absolute', 
-              left: '8px', 
-              top: '50%', 
-              transform: 'translateY(-50%)',
-              color: 'var(--text-secondary)'
-            }} 
-          />
-          <input
-            ref={searchInputRef}
-            type="text"
-            placeholder="搜索文件..."
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="search-input"
-            style={{ paddingLeft: '32px' }}
-          />
-        </div>
-      </div>
-
+  const renderFileTree = () => {
+    const isSearchMode = !!searchQuery;
+    
+    return (
       <div className="file-tree">
         {filteredItems.length === 0 ? (
-          <div style={{ 
+          <div className="file-tree-empty" style={{ 
             padding: '20px', 
             textAlign: 'center', 
             color: 'var(--text-secondary)',
             fontSize: '14px'
           }}>
             {searchQuery ? '未找到匹配的文件' : '暂无文件'}
+            {!searchQuery && !workspace && (
+              <div style={{ marginTop: '12px', fontSize: '12px' }}>
+                <div>可以点击上方按钮创建文件</div>
+                <div>或者打开工作空间文件夹</div>
+              </div>
+            )}
           </div>
         ) : (
-          searchQuery ? (
-            // 搜索模式：平铺显示所有匹配项
-            filteredItems.map(item => renderFileItem(item, 0))
-          ) : (
-            // 正常模式：树形结构显示
-            filteredItems.map(item => renderFileItem(item, 0))
-          )
+          <div className="file-tree-content">
+            {isSearchMode ? (
+              // 搜索模式：展开显示所有匹配的项目
+              <div className="search-results">
+                <div className="search-results-header" style={{
+                  padding: '8px 12px',
+                  fontSize: '12px',
+                  color: 'var(--text-secondary)',
+                  borderBottom: '1px solid var(--border-color)',
+                  marginBottom: '4px'
+                }}>
+                  找到 {filteredItems.length} 个结果
+                </div>
+                {filteredItems.map(item => renderFileItem(item, 0, true))}
+              </div>
+            ) : (
+              // 正常模式：树形结构显示
+              <div className="file-tree-normal">
+                {filteredItems.map(item => renderFileItem(item, 0, false))}
+              </div>
+            )}
+          </div>
         )}
       </div>
+    );
+  };
+
+  // 渲染不同面板的内容
+  const renderContent = () => {
+    switch (activeActivityItem) {
+      case 'files':
+        return (
+          <>
+            <div className="sidebar-header">
+              <h2>文件管理</h2>
+              <div style={{ display: 'flex', gap: '4px' }}>
+                <button
+                  className="button"
+                  onClick={() => handleCreateFile()}
+                  title="新建文件"
+                >
+                  <FileText size={16} />
+                </button>
+                <button
+                  className="button"
+                  onClick={() => handleCreateFolder()}
+                  title="新建文件夹"
+                >
+                  <FolderPlus size={16} />
+                </button>
+                <button
+                  className="button"
+                  onClick={onToggleTheme}
+                  title="切换主题"
+                >
+                  {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
+                </button>
+              </div>
+            </div>
+
+            <div style={{ padding: '0 16px', marginBottom: '12px' }}>
+              <div className="search-input-wrapper">
+                <Search size={16} className="search-icon" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  className="search-input"
+                  placeholder="搜索文件..."
+                  value={searchQuery}
+                  onChange={(e) => onSearchChange(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {workspace && (
+              <div className="workspace-info">
+                <div className="workspace-header">
+                  <span className="workspace-name">{workspace.name}</span>
+                  <button
+                    className="workspace-close-button"
+                    onClick={onCloseWorkspace}
+                    title="关闭工作空间"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!workspace && (
+              <div className="workspace-section">
+                <button className="workspace-open-button" onClick={onOpenWorkspace}>
+                  📁 打开工作空间
+                </button>
+              </div>
+            )}
+
+            <div className="file-tree">
+              {renderFileTree()}
+            </div>
+          </>
+        );
+
+      case 'search':
+        return (
+          <>
+            <div className="sidebar-header">
+              <h2>全局搜索</h2>
+            </div>
+            <SearchPanel
+              files={files}
+              onFileSelect={onFileSelect}
+              isDarkMode={isDarkMode}
+            />
+          </>
+        );
+
+      case 'settings':
+        return (
+          <>
+            <div className="sidebar-header">
+              <h2>设置</h2>
+            </div>
+            <SettingsPanel
+              isDarkMode={isDarkMode}
+              onToggleTheme={onToggleTheme}
+            />
+          </>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="sidebar">
+      {renderContent()}
 
       {/* 右键上下文菜单 */}
       {contextMenu && (

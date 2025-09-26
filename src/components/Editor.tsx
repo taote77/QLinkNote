@@ -1,14 +1,20 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import MonacoEditor from '@monaco-editor/react';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
-import { FileItem } from '../types';
+import { FileItem, NoteLink } from '../types';
+import { ActivityBarItem } from './ActivityBar';
+import GraphView from './GraphView';
+import MindMapEditor from './MindMapEditor';
 import { 
   Eye, 
   EyeOff, 
   Columns, 
   Save,
-  FileText
+  FileText,
+  Link,
+  Network,
+  GitBranch
 } from 'lucide-react';
 
 interface EditorProps {
@@ -17,11 +23,17 @@ interface EditorProps {
   isPreviewMode: boolean;
   isSplitView: boolean;
   isDarkMode?: boolean;
+  noteLinks: Record<string, NoteLink>;
+  activeActivityItem?: ActivityBarItem;
   onContentChange: (id: string, content: string) => void;
   onTogglePreview: () => void;
   onToggleSplitView: () => void;
   onSaveFile?: () => void;
   onSaveAs?: () => void;
+  onNoteLink?: (fileId: string) => void;
+  renderLinkedContent?: (content: string, files: Record<string, FileItem>, onLinkClick?: (fileId: string) => void) => string;
+  getFileConnections?: (fileId: string, files: Record<string, FileItem>) => { outgoing: FileItem[]; incoming: FileItem[] };
+  suggestLinks?: (content: string, files: Record<string, FileItem>) => string[];
 }
 
 const Editor: React.FC<EditorProps> = ({
@@ -30,15 +42,37 @@ const Editor: React.FC<EditorProps> = ({
   isPreviewMode,
   isSplitView,
   isDarkMode = false,
+  noteLinks,
+  // activeActivityItem, // 暂时未使用
   onContentChange,
   onTogglePreview,
   onToggleSplitView,
   onSaveFile,
-  onSaveAs
+  onSaveAs,
+  onNoteLink,
+  renderLinkedContent,
+  getFileConnections
+  // suggestLinks 暂时未使用，注释掉避免编译警告
 }) => {
+  const [showGraph, setShowGraph] = useState(false);
+  const [showMindMap, setShowMindMap] = useState(false);
+
   const editorRef = useRef<any>(null);
   
   const activeFile = activeFileId ? files[activeFileId] : null;
+  
+  // 判断当前文件是否为思维导图文件
+  const isMindMapFile = activeFile?.name.endsWith('.mindmap.md') || false;
+  
+  // 如果是思维导图文件，自动显示思维导图
+  useEffect(() => {
+    if (isMindMapFile) {
+      setShowMindMap(true);
+      setShowGraph(false);
+    } else {
+      setShowMindMap(false);
+    }
+  }, [isMindMapFile]);
 
   const handleEditorDidMount = (editor: any, monaco: any) => {
     try {
@@ -77,13 +111,37 @@ const Editor: React.FC<EditorProps> = ({
 
   const renderMarkdown = (content: string) => {
     try {
-      const html = marked(content);
+      let processedContent = content;
+      
+      // 如果有链接渲染函数，使用它处理内容
+      if (renderLinkedContent && onNoteLink) {
+        processedContent = renderLinkedContent(content, files, onNoteLink);
+      }
+      
+      const html = marked(processedContent);
       return DOMPurify.sanitize(html as string);
     } catch (error) {
       console.error('Markdown rendering error:', error);
       return '<p>渲染错误</p>';
     }
   };
+
+  // 处理预览面板中的链接点击
+  const handlePreviewClick = useCallback((e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.classList.contains('note-link')) {
+      e.preventDefault();
+      const fileId = target.getAttribute('data-file-id');
+      if (fileId && onNoteLink) {
+        onNoteLink(fileId);
+      }
+    }
+  }, [onNoteLink]);
+
+  // 获取当前文件的连接信息
+  const connections = activeFileId && getFileConnections ? 
+    getFileConnections(activeFileId, files) : 
+    { outgoing: [], incoming: [] };
 
   // 键盘快捷键
   useEffect(() => {
@@ -134,6 +192,30 @@ const Editor: React.FC<EditorProps> = ({
           >
             {isPreviewMode ? <EyeOff size={16} /> : <Eye size={16} />}
             预览
+          </button>
+          
+          <button 
+            className={`button ${showGraph ? 'primary' : ''}`}
+            onClick={() => {
+              setShowGraph(!showGraph);
+              if (!showGraph) setShowMindMap(false);
+            }}
+            title="关系图谱"
+          >
+            <Network size={16} />
+            图谱
+          </button>
+          
+          <button 
+            className={`button ${showMindMap ? 'primary' : ''}`}
+            onClick={() => {
+              setShowMindMap(!showMindMap);
+              if (!showMindMap) setShowGraph(false);
+            }}
+            title="思维导图"
+          >
+            <GitBranch size={16} />
+            导图
           </button>
           
           <button 
@@ -210,12 +292,86 @@ const Editor: React.FC<EditorProps> = ({
         {/* 预览面板 */}
         {(isPreviewMode || isSplitView) && (
           <div className="preview-pane">
-            <div 
-              className="preview-content"
-              dangerouslySetInnerHTML={{ 
-                __html: renderMarkdown(activeFile.content || '') 
-              }}
-            />
+            {showGraph ? (
+              // 关系图谱视图
+              <div className="graph-container">
+                <div className="graph-header">
+                  <h3><Network size={20} /> 关系图谱</h3>
+                </div>
+                <GraphView
+                  files={files}
+                  noteLinks={noteLinks}
+                  onNodeClick={onNoteLink}
+                  isDarkMode={isDarkMode}
+                />
+              </div>
+            ) : showMindMap ? (
+              // 思维导图视图
+              <div className="mindmap-container">
+                <div className="mindmap-header">
+                  <h3><GitBranch size={20} /> 思维导图</h3>
+                </div>
+                <MindMapEditor
+                  content={activeFile.content || ''}
+                  onChange={(content) => activeFileId && onContentChange(activeFileId, content)}
+                  isDarkMode={isDarkMode}
+                />
+              </div>
+            ) : (
+              // 正常预览内容
+              <>
+                <div 
+                  className="preview-content"
+                  onClick={handlePreviewClick}
+                  dangerouslySetInnerHTML={{ 
+                    __html: renderMarkdown(activeFile.content || '') 
+                  }}
+                />
+                
+                {/* 链接信息面板 */}
+                {(connections.outgoing.length > 0 || connections.incoming.length > 0) && (
+                  <div className="connections-panel">
+                    <h4><Link size={16} /> 连接</h4>
+                    
+                    {connections.outgoing.length > 0 && (
+                      <div className="connections-section">
+                        <h5>引用链接 ({connections.outgoing.length})</h5>
+                        <ul className="connections-list">
+                          {connections.outgoing.map(file => (
+                            <li key={file.id}>
+                              <button 
+                                className="connection-link"
+                                onClick={() => onNoteLink && onNoteLink(file.id)}
+                              >
+                                {file.name.replace(/\.md$/, '')}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    
+                    {connections.incoming.length > 0 && (
+                      <div className="connections-section">
+                        <h5>反向链接 ({connections.incoming.length})</h5>
+                        <ul className="connections-list">
+                          {connections.incoming.map(file => (
+                            <li key={file.id}>
+                              <button 
+                                className="connection-link"
+                                onClick={() => onNoteLink && onNoteLink(file.id)}
+                              >
+                                {file.name.replace(/\.md$/, '')}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
       </div>

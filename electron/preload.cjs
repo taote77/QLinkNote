@@ -14,6 +14,10 @@ if (!window.electronAPI) {
     createFileInWorkspace: (workspacePath, fileName, parentPath) => ipcRenderer.invoke('create-file-in-workspace', { workspacePath, fileName, parentPath }),
     createFolderInWorkspace: (workspacePath, folderName, parentPath) => ipcRenderer.invoke('create-folder-in-workspace', { workspacePath, folderName, parentPath }),
     
+    // 工作空间元数据操作
+    initializeWorkspaceMetadata: (workspacePath) => ipcRenderer.invoke('initialize-workspace-metadata', workspacePath),
+    updateWorkspaceMetadata: (workspacePath, metadata) => ipcRenderer.invoke('update-workspace-metadata', { workspacePath, metadata }),
+    
     // 菜单事件监听
     onMenuNewFile: (callback) => ipcRenderer.on('menu-new-file', callback),
     onMenuOpenFile: (callback) => ipcRenderer.on('menu-open-file', callback),

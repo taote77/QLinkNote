@@ -310,6 +310,10 @@ ipcMain.handle('open-workspace', async () => {
 
     if (!result.canceled && result.filePaths.length > 0) {
       const workspacePath = result.filePaths[0];
+      
+      // 初始化.linknote文件夹
+      await initializeWorkspaceFolder(workspacePath);
+      
       const files = await readDirectoryRecursive(workspacePath);
       return { success: true, path: workspacePath, files };
     }
@@ -353,7 +357,75 @@ ipcMain.handle('create-folder-in-workspace', async (event, { workspacePath, fold
   }
 });
 
-// 递归读取目录的助手函数
+// 初始化工作空间元数据
+ipcMain.handle('initialize-workspace-metadata', async (event, workspacePath) => {
+  try {
+    const linknotePath = path.join(workspacePath, '.linknote');
+    const metadataPath = path.join(linknotePath, 'workspace.json');
+    
+    // 确保.linknote文件夹存在
+    if (!existsSync(linknotePath)) {
+      await fs.mkdir(linknotePath, { recursive: true });
+    }
+    
+    let metadata;
+    if (existsSync(metadataPath)) {
+      // 读取现有元数据
+      const metadataContent = await fs.readFile(metadataPath, 'utf-8');
+      metadata = JSON.parse(metadataContent);
+      // 更新最后打开时间
+      metadata.lastOpened = new Date().toISOString();
+    } else {
+      // 创建新的元数据
+      const workspaceName = path.basename(workspacePath);
+      metadata = {
+        name: workspaceName,
+        createdAt: new Date().toISOString(),
+        lastOpened: new Date().toISOString(),
+        version: '1.0.0',
+        settings: {
+          theme: 'auto',
+          layout: {}
+        }
+      };
+    }
+    
+    // 保存更新后的元数据
+    await fs.writeFile(metadataPath, JSON.stringify(metadata, null, 2), 'utf-8');
+    
+    return { success: true, metadata };
+  } catch (error) {
+    console.error('Error initializing workspace metadata:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// 更新工作空间元数据
+ipcMain.handle('update-workspace-metadata', async (event, { workspacePath, metadata }) => {
+  try {
+    const metadataPath = path.join(workspacePath, '.linknote', 'workspace.json');
+    
+    let currentMetadata = {};
+    if (existsSync(metadataPath)) {
+      const content = await fs.readFile(metadataPath, 'utf-8');
+      currentMetadata = JSON.parse(content);
+    }
+    
+    // 合并元数据
+    const updatedMetadata = {
+      ...currentMetadata,
+      ...metadata,
+      lastOpened: new Date().toISOString()
+    };
+    
+    await fs.writeFile(metadataPath, JSON.stringify(updatedMetadata, null, 2), 'utf-8');
+    
+    return { success: true, metadata: updatedMetadata };
+  } catch (error) {
+    console.error('Error updating workspace metadata:', error);
+    return { success: false, error: error.message };
+  }
+});
 async function readDirectoryRecursive(dirPath) {
   const files = [];
   

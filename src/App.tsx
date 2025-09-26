@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { FileItem, EditorState } from './types';
+import ActivityBar, { ActivityBarItem } from './components/ActivityBar';
 import Sidebar from './components/Sidebar';
 import Editor from './components/Editor';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -11,6 +12,7 @@ import { useElectronFileSystem } from './hooks/useElectronFileSystem';
 import { useElectronMenu } from './hooks/useElectronMenu';
 import { useToast } from './hooks/useToast';
 import { useWorkspace } from './hooks/useWorkspace';
+import { useNoteLinks } from './hooks/useNoteLinks';
 
 const initialFiles: Record<string, FileItem> = {
   'welcome': {
@@ -19,7 +21,7 @@ const initialFiles: Record<string, FileItem> = {
     type: 'file',
     content: `# 欢迎使用 QLinkNote
 
-这是一个参考 Obsidian 设计的 Markdown 编辑器。
+这是一个参考 [[Obsidian]] 设计的 Markdown 编辑器。
 
 ## 特性
 
@@ -29,6 +31,7 @@ const initialFiles: Record<string, FileItem> = {
 - 🌓 深色/浅色主题切换
 - ⚡ 快捷键支持
 - 💾 自动保存功能
+- 🔗 **笔记链接系统** - 支持 [[文件名]] 链接语法
 
 ## 快捷键
 
@@ -37,6 +40,12 @@ const initialFiles: Record<string, FileItem> = {
 - \`Ctrl + F\`: 搜索
 - \`Ctrl + P\`: 切换预览模式
 - \`Ctrl + \\\`: 切换分屏模式
+
+## 开始使用
+
+1. 尝试创建新文件
+2. 使用 [[文件名]] 语法创建链接
+3. 在预览模式中点击链接进行跳转
 
 开始编辑你的第一个 Markdown 文件吧！
 `
@@ -63,6 +72,12 @@ function App() {
     createFolderInWorkspace
   } = useWorkspace();
   const { toasts, removeToast, showSuccess, showError } = useToast();
+  const {
+    updateFileLinks,
+    renderLinkedContent,
+    getFileConnections,
+    suggestLinks
+  } = useNoteLinks();
   
   const [state, setState] = useState<EditorState>(() => {
     const hasStoredFiles = Object.keys(storedFiles).length > 0;
@@ -83,9 +98,14 @@ function App() {
       isDarkMode,
       isPreviewMode: false,
       isSplitView: true,
-      workspace: null
+      workspace: null,
+      noteLinks: {}
     };
   });
+
+  const [activeActivityItem, setActiveActivityItem] = useState<ActivityBarItem>('files');
+  const [sidebarWidth, setSidebarWidth] = useState(260);
+  const [isResizing, setIsResizing] = useState(false);
 
   // 同步本地存储的文件到状态
   useEffect(() => {
@@ -458,19 +478,22 @@ function App() {
       content
     };
 
-    const updatedFiles = {
+    // 更新链接关系
+    const { updatedFiles, noteLinks } = updateFileLinks(id, content, {
       ...state.files,
       [id]: updatedFile
-    };
+    });
 
     setState(prev => ({
       ...prev,
-      files: updatedFiles
+      files: updatedFiles,
+      noteLinks: { ...prev.noteLinks, ...noteLinks }
     }));
 
     // 保存到本地存储
     saveFile(updatedFile);
-  }, [state.files, saveFile]);
+    saveFiles(updatedFiles);
+  }, [state.files, updateFileLinks, saveFile, saveFiles]);
 
   // 另存为功能
   const saveAsFile = useCallback(async () => {
@@ -530,6 +553,33 @@ function App() {
     onToggleTheme: toggleTheme
   });
 
+  // 处理侧边栏拖拽调整大小
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    setIsResizing(true);
+    e.preventDefault();
+  }, []);
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!isResizing) return;
+    const newWidth = Math.max(200, Math.min(500, e.clientX - 48)); // 48是ActivityBar的宽度
+    setSidebarWidth(newWidth);
+  }, [isResizing]);
+
+  const handleMouseUp = useCallback(() => {
+    setIsResizing(false);
+  }, []);
+
+  useEffect(() => {
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [isResizing, handleMouseMove, handleMouseUp]);
+
   // 键盘快捷键
   useKeyboardShortcuts({
     onSave: saveCurrentFile,
@@ -547,34 +597,59 @@ function App() {
   return (
     <ErrorBoundary>
       <div className="app" data-theme={state.isDarkMode ? 'dark' : 'light'}>
-        <Sidebar
-          files={state.files}
-          activeFileId={state.activeFileId}
-          searchQuery={state.searchQuery}
-          workspace={state.workspace}
-          onFileSelect={setActiveFile}
-          onCreateFile={createFile}
-          onCreateFolder={createFolder}
-          onDeleteItem={deleteItem}
-          onRenameItem={renameItem}
-          onSearchChange={setSearchQuery}
-          onToggleTheme={toggleTheme}
-          onOpenWorkspace={handleOpenWorkspace}
-          onCloseWorkspace={handleCloseWorkspace}
+        <ActivityBar
+          activeItem={activeActivityItem}
+          onItemChange={setActiveActivityItem}
           isDarkMode={state.isDarkMode}
         />
-        <Editor
-          files={state.files}
-          activeFileId={state.activeFileId}
-          isPreviewMode={state.isPreviewMode}
-          isSplitView={state.isSplitView}
-          isDarkMode={state.isDarkMode}
-          onContentChange={updateFileContent}
-          onTogglePreview={togglePreviewMode}
-          onToggleSplitView={toggleSplitView}
-          onSaveFile={saveCurrentFile}
-          onSaveAs={saveAsCurrentFile}
-        />
+        <div className="main-layout">
+          <div 
+            className="sidebar-container"
+            style={{ width: sidebarWidth }}
+          >
+            <Sidebar
+              files={state.files}
+              activeFileId={state.activeFileId}
+              searchQuery={state.searchQuery}
+              workspace={state.workspace}
+              activeActivityItem={activeActivityItem}
+              onFileSelect={setActiveFile}
+              onCreateFile={createFile}
+              onCreateFolder={createFolder}
+              onDeleteItem={deleteItem}
+              onRenameItem={renameItem}
+              onSearchChange={setSearchQuery}
+              onToggleTheme={toggleTheme}
+              onOpenWorkspace={handleOpenWorkspace}
+              onCloseWorkspace={handleCloseWorkspace}
+              isDarkMode={state.isDarkMode}
+            />
+          </div>
+          <div 
+            className="sidebar-resizer"
+            onMouseDown={handleMouseDown}
+            style={{ cursor: isResizing ? 'col-resize' : 'col-resize' }}
+          />
+          <div className="editor-container">
+            <Editor
+              files={state.files}
+              activeFileId={state.activeFileId}
+              isPreviewMode={state.isPreviewMode}
+              isSplitView={state.isSplitView}
+              isDarkMode={state.isDarkMode}
+              noteLinks={state.noteLinks}
+              onContentChange={updateFileContent}
+              onTogglePreview={togglePreviewMode}
+              onToggleSplitView={toggleSplitView}
+              onSaveFile={saveCurrentFile}
+              onSaveAs={saveAsCurrentFile}
+              onNoteLink={setActiveFile}
+              renderLinkedContent={renderLinkedContent}
+              getFileConnections={getFileConnections}
+              suggestLinks={suggestLinks}
+            />
+          </div>
+        </div>
       </div>
       <ToastManager toasts={toasts} onRemoveToast={removeToast} />
     </ErrorBoundary>

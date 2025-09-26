@@ -14,6 +14,9 @@ declare global {
       readWorkspaceFiles: (workspacePath: string) => Promise<{ success: boolean; files?: any[]; error?: string }>;
       createFileInWorkspace: (workspacePath: string, fileName: string, parentPath?: string) => Promise<{ success: boolean; filePath?: string; error?: string }>;
       createFolderInWorkspace: (workspacePath: string, folderName: string, parentPath?: string) => Promise<{ success: boolean; folderPath?: string; error?: string }>;
+      // 工作空间元数据操作
+      initializeWorkspaceMetadata: (workspacePath: string) => Promise<{ success: boolean; metadata?: any; error?: string }>;
+      updateWorkspaceMetadata: (workspacePath: string, metadata: any) => Promise<{ success: boolean; metadata?: any; error?: string }>;
       // 菜单事件
       onMenuNewFile: (callback: () => void) => void;
       onMenuOpenFile: (callback: (event: any, data: { fileName: string; content: string; filePath: string }) => void) => void;
