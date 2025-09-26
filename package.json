@@ -1,7 +1,7 @@
 {
   "name": "qlinknote",
   "private": false,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "description": "A modern Markdown editor inspired by Obsidian - 现代化的 Markdown 编辑器",
   "author": {
@@ -10,7 +10,14 @@
     "url": "https://your-website.com"
   },
   "license": "MIT",
-  "keywords": ["markdown", "editor", "note-taking", "obsidian", "electron", "productivity"],
+  "keywords": [
+    "markdown",
+    "editor",
+    "note-taking",
+    "obsidian",
+    "electron",
+    "productivity"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/yourusername/qlinknote"
@@ -82,11 +89,15 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "appx",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "assets/icon.ico",
@@ -105,7 +116,10 @@
       "publisher": "CN=YourPublisherID",
       "backgroundColor": "#1e1e1e",
       "showNameOnTiles": true,
-      "languages": ["en-US", "zh-CN"]
+      "languages": [
+        "en-US",
+        "zh-CN"
+      ]
     }
   }
 }
