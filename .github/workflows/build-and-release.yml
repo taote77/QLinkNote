@@ -6,9 +6,17 @@ on:
       - 'v*'  # 当推送标签时触发，如 v1.0.0
   workflow_dispatch:  # 允许手动触发
 
+env:
+  FORCE_COLOR: 0
+  ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron
+  ELECTRON_BUILDER_CACHE: ${{ github.workspace }}/.cache/electron-builder
+
 jobs:
   build-and-release:
     runs-on: windows-latest
+    
+    permissions:
+      contents: write  # 允许写入仓库内容
     
     steps:
     - name: Checkout code
@@ -20,6 +28,13 @@ jobs:
         node-version: '18'
         cache: 'npm'
         
+    - name: Get version from tag
+      id: get_version
+      run: |
+        $VERSION = "${{ github.ref_name }}" -replace '^v', ''
+        echo "VERSION=$VERSION" >> $env:GITHUB_OUTPUT
+        echo "RELEASE_NAME=QLinkNote v$VERSION" >> $env:GITHUB_OUTPUT
+        
     - name: Install dependencies
       run: npm ci
       
@@ -30,26 +45,29 @@ jobs:
       run: npm run electron:pack
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+        WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
         
     - name: List release files
-      run: dir release\
+      run: |
+        echo "打包结果:"
+        Get-ChildItem -Path "release" -Recurse -File | Select-Object FullName, Length | Format-Table
       
     - name: Create Release
       id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      uses: softprops/action-gh-release@v1
       with:
-        tag_name: ${{ github.ref }}
-        release_name: QLinkNote ${{ github.ref }}
+        tag_name: ${{ github.ref_name }}
+        name: ${{ steps.get_version.outputs.RELEASE_NAME }}
         body: |
           🎉 QLinkNote 新版本发布！
           
           ## 📦 下载地址
           
           ### Windows 用户
-          - **便携版**: 下载 `QLinkNote-Setup-*.exe`
-          - **免安装版**: 下载并解压 `QLinkNote-win-x64.zip`
+          - **安装版**: 下载 `QLinkNote-Setup-${{ steps.get_version.outputs.VERSION }}.exe`
+          - **便携版**: 下载并解压 `QLinkNote-win-x64-${{ steps.get_version.outputs.VERSION }}.zip`
+          - **Microsoft Store 版本**: 下载 `QLinkNote-${{ steps.get_version.outputs.VERSION }}.appx`
           
           ## 🚀 主要特性
           - 📝 实时 Markdown 编辑和预览
@@ -58,40 +76,72 @@ jobs:
           - 🌓 深色/浅色主题切换
           - ⚡ 丰富的键盘快捷键
           - 💾 自动保存功能
+          - 🗺️ 关系图谱可视化
           
           ## 📋 安装说明
-          1. 下载对应版本的安装包
+          
+          ### 安装版 (exe)
+          1. 下载 `QLinkNote-Setup-${{ steps.get_version.outputs.VERSION }}.exe`
           2. 双击运行安装程序
           3. 按照向导完成安装
-          4. 开始享受 Markdown 编辑体验！
+          
+          ### 便携版 (zip)
+          1. 下载 `QLinkNote-win-x64-${{ steps.get_version.outputs.VERSION }}.zip`
+          2. 解压到任意目录
+          3. 双击 `QLinkNote.exe` 运行
+          
+          ### Microsoft Store 版本 (appx)
+          1. 下载 `QLinkNote-${{ steps.get_version.outputs.VERSION }}.appx`
+          2. 双击安装或使用 PowerShell: `Add-AppxPackage -Path "QLinkNote-${{ steps.get_version.outputs.VERSION }}.appx"`
           
           ## 🐛 问题反馈
-          如果遇到问题，请在 [Issues](https://github.com/yourusername/qlinknote/issues) 中反馈。
+          如果遇到问题，请在 [Issues](https://github.com/${{ github.repository }}/issues) 中反馈。
           
+          ---
+          
+          **自动构建于**: ${{ github.sha }}
         draft: false
         prerelease: false
+        files: |
+          release/QLinkNote Setup ${{ steps.get_version.outputs.VERSION }}.exe
+          release/QLinkNote-${{ steps.get_version.outputs.VERSION }}.appx
+        fail_on_unmatched_files: false
         
-    - name: Upload Windows Setup
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: release/QLinkNote Setup 1.0.0.exe
-        asset_name: QLinkNote-Setup-${{ github.ref_name }}.exe
-        asset_content_type: application/octet-stream
-        
-    - name: Zip Windows portable
+    - name: Create portable version
       run: |
-        cd release/win-unpacked
-        7z a ../QLinkNote-win-x64-${{ github.ref_name }}.zip *
+        $VERSION = "${{ steps.get_version.outputs.VERSION }}"
         
-    - name: Upload Windows Portable
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # 检查可能的目录名称
+        $possibleDirs = @(
+          "release\win-unpacked",
+          "release\QLinkNote-$VERSION-win-x64-unpacked",
+          "release\qlinknote-$VERSION-win-x64-unpacked"
+        )
+        
+        $sourceDir = $null
+        foreach ($dir in $possibleDirs) {
+          if (Test-Path $dir) {
+            $sourceDir = $dir
+            Write-Host "找到源目录: $sourceDir"
+            break
+          }
+        }
+        
+        if (-not $sourceDir) {
+          Write-Host "列出 release 目录内容:"
+          Get-ChildItem -Path "release" -Recurse | Select-Object FullName
+          throw "找不到 unpacked 目录"
+        }
+        
+        # 创建便携版 ZIP
+        $zipPath = "release\QLinkNote-win-x64-$VERSION.zip"
+        Compress-Archive -Path "$sourceDir\*" -DestinationPath $zipPath -Force
+        Write-Host "便携版已创建: $zipPath"
+        
+    - name: Upload additional assets
+      uses: softprops/action-gh-release@v1
       with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: release/QLinkNote-win-x64-${{ github.ref_name }}.zip
-        asset_name: QLinkNote-win-x64-${{ github.ref_name }}.zip
-        asset_content_type: application/zip
+        tag_name: ${{ github.ref_name }}
+        files: |
+          release/QLinkNote-win-x64-${{ steps.get_version.outputs.VERSION }}.zip
+        fail_on_unmatched_files: false

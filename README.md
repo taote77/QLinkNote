@@ -1,6 +1,6 @@
 # QLinkNote - Markdown 编辑器
 
-一个参考 Obsidian 设计的现代化 Markdown 编辑器，使用 React + TypeScript + Vite 构建。
+一个参考 Obsidian 设计的现代化 Markdown 编辑器，使用 React + TypeScript + Vite 构建，支持 Electron 桌面应用。
 
 ## ✨ 特性
 
@@ -9,30 +9,58 @@
 - 🔍 **全文搜索** - 快速搜索文件名和内容
 - 🌓 **主题切换** - 深色/浅色主题支持
 - ⚡ **快捷键支持** - 丰富的键盘快捷键
-- 💾 **本地存储** - 自动保存到浏览器本地存储
+- 💾 **本地存储** - 自动保存到浏览器本地存储或文件系统
 - 🖥️ **分屏模式** - 编辑和预览同时显示
 - 🎨 **现代界面** - 类似 Obsidian 的简洁界面设计
+- 🖥️ **桌面应用** - 基于 Electron 的跨平台桌面应用
 
 ## 🚀 快速开始
 
-### 安装依赖
+### 🔥 下载发布版本
+
+访问 [Releases 页面](https://github.com/yourusername/qlinknote/releases) 下载最新版本：
+
+- **Windows 安装版**: `QLinkNote-Setup-{version}.exe`
+- **Windows 便携版**: `QLinkNote-win-x64-{version}.zip`
+- **Microsoft Store 版**: `QLinkNote-{version}.appx`
+
+### 🛠️ 开发环境
+
+#### 安装依赖
 
 ```bash
 npm install
 ```
 
-### 启动开发服务器
+#### 启动 Web 开发服务器
 
 ```bash
 npm run dev
 ```
 
-应用将在 `http://localhost:3000` 启动。
+应用将在 `http://localhost:3001` 启动。
 
-### 构建生产版本
+#### 启动 Electron 桌面应用
 
 ```bash
+# Windows
+start-electron.bat
+
+# 或者使用 npm
+npm run electron:dev
+```
+
+#### 构建和打包
+
+```bash
+# 构建 Web 版本
 npm run build
+
+# 打包 Electron 应用
+npm run electron:pack
+
+# 构建检查
+npm run release:check
 ```
 
 ## ⌨️ 快捷键
@@ -68,15 +96,52 @@ npm run build
 - 支持文件内容全文搜索
 - 实时搜索结果更新
 
+## 📦 发布流程
+
+### 🤖 自动发布（推荐）
+
+1. **更新版本号**：
+```bash
+npm run version:patch  # 1.0.0 -> 1.0.1
+npm run version:minor  # 1.0.0 -> 1.1.0  
+npm run version:major  # 1.0.0 -> 2.0.0
+```
+
+2. **GitHub Actions 自动构建发布**：
+   - 标签推送后自动触发
+   - 自动构建 Windows 安装包
+   - 自动创建 GitHub Release
+
+### 🔧 手动发布
+
+#### Windows 用户
+```bash
+# 运行批处理脚本
+scripts\release-to-github.bat
+```
+
+#### 命令行用户
+```bash
+# 使用默认版本号
+npm run release:manual
+
+# 指定版本号
+node scripts/release-to-github.js 1.0.1
+```
+
+📄 **详细文档**: 查看 [GitHub 发布指南](GITHUB_RELEASE_GUIDE.md)
+
 ## 🛠️ 技术栈
 
 - **React 18** - 用户界面框架
 - **TypeScript** - 类型安全的 JavaScript
 - **Vite** - 现代构建工具
+- **Electron** - 跨平台桌面应用框架
 - **Monaco Editor** - 代码编辑器
 - **marked** - Markdown 解析器
 - **DOMPurify** - XSS 防护
 - **Lucide React** - 图标库
+- **electron-builder** - Electron 应用打包工具
 
 ## 📁 项目结构
 

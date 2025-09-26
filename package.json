@@ -27,7 +27,12 @@
     "electron": "electron .",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:3001 && electron .\"",
     "electron:pack": "npm run build && electron-builder",
-    "electron:dist": "npm run build && electron-builder --publish=never"
+    "electron:dist": "npm run build && electron-builder --publish=never",
+    "version:patch": "npm version patch && git push --follow-tags",
+    "version:minor": "npm version minor && git push --follow-tags",
+    "version:major": "npm version major && git push --follow-tags",
+    "release:manual": "node scripts/release-to-github.js",
+    "release:check": "npm run build && npm run electron:pack && echo \"构建完成，检查 release/ 目录\""
   },
   "dependencies": {
     "@monaco-editor/react": "^4.6.0",
